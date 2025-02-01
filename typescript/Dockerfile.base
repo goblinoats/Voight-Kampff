@@ -1,0 +1,32 @@
+# Use Node.js 22.8.0 as the base image
+FROM node:22.8.0-slim
+
+########################################################
+# Setup the Docker environment
+########################################################
+
+# Set the Docker working directory
+WORKDIR /app
+
+# Configure pnpm as package manager in the Docker image
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+# Wow, this blows... I guess pnpm 10 somehow breaks bun for this Docker image??
+# Optional: Remove any existing global installation of pnpm
+RUN npm uninstall -g pnpm || true
+
+# Install the desired version of pnpm globally (for example, 9.10.0) only if not already installed
+RUN npm install -g pnpm@9.10.0 --force
+
+
+########################################################
+# Install common dependencies globally
+########################################################
+
+# Install tsx globally
+RUN pnpm install -g tsx
+
+# Install bun globally
+RUN pnpm install -g bun

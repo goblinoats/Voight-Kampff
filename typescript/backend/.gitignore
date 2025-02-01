@@ -1,5 +1,4 @@
 # Logs
-.DS_Store
 logs
 *.log
 npm-debug.log*
@@ -130,7 +129,5 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-tmp/*
-
-models
-sd-env
+# sqlite3 DB files
+db.docs

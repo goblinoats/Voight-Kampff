@@ -1,0 +1,91 @@
+services:
+  nginx:
+    build:
+      context: ../../tools/nginx/staging
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_started
+      whisper:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - project-network
+
+  frontend:
+    build:
+      context: ../../typescript
+      dockerfile: frontend/Dockerfile.frontend
+      args:
+        - NODE_ENV=${NODE_ENV:-development}
+        - DEVELOPMENT_MODE=${DEVELOPMENT_MODE:-standard}
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DEVELOPMENT_MODE=${DEVELOPMENT_MODE:-standard}
+    env_file:
+      - ../../typescript/frontend/.env.${NODE_ENV:-development}
+    networks:
+      - project-network
+
+  backend:
+    build:
+      context: ../../typescript
+      dockerfile: backend/Dockerfile.sync
+    ports:
+      - "3002:3002"
+    # depends_on:
+      # diffusion:
+      #   condition: service_started
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DEVELOPMENT_MODE=${DEVELOPMENT_MODE:-standard}
+    env_file:
+      - ../../typescript/backend/.env.${NODE_ENV:-development}
+    restart: unless-stopped
+    networks:
+      - project-network
+    extra_hosts:
+      - "hosts.docker.internal:host-gateway"
+
+  whisper:
+    build:
+      context: ../../python
+      dockerfile: whisper/Dockerfile.whisper
+    ports:
+      - "5001:5001"
+    volumes:
+      - ../../python/whisper/models:/app/models
+    networks:
+      - project-network
+  
+  # Uncomment if you want to run the diffusion model inside docker
+  # If you want to process the images faster for apple silicon
+  # you should manually start it on your Mac like so in the stable-diffusion dir
+  # python api.py --optimize-mac
+  # diffusion:
+  #   build:
+  #     context: ../../python
+  #     dockerfile: stable-diffusion/Dockerfile.diffusion
+  #   ports:
+  #     - "5003:5003"
+  #   volumes:
+  #     - ../../python/stable-diffusion/stable-diffusion-v1-4:/app/stable-diffusion-v1-4
+  #   networks:
+  #     - project-network
+
+
+volumes:
+  shared-logs:
+
+networks:
+  project-network:
+    driver: bridge

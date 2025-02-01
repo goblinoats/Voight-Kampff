@@ -1,0 +1,19 @@
+# Node modules
+# This prevents copying the local node_modules directory into the Docker image.
+node_modules
+
+.npmrc
+
+# Logs
+npm-debug.log
+# This is the pnpm equivalent of npm-debug.log.
+pnpm-debug.log
+
+# pnpm store
+# This is the pnpm store directory, which is used to cache dependencies.
+.pnpm-store
+
+# Other common files to ignore
+.DS_Store
+.env
+*.log

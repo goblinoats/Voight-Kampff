@@ -1,0 +1,32 @@
+{
+  "name": "vk_backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./server.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node server.js",
+    "dev": "tsx watch --clear-screen=false ./server.js",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "form-data": "^4.0.1",
+    "multer": "1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.7.5",
+    "tsx": "^4.7.0",
+    "typescript": "^5.6.2"
+  },
+  "packageManager": "pnpm@9.12.3+sha512.cce0f9de9c5a7c95bef944169cc5dfe8741abfb145078c0d508b868056848a87c81e626246cb60967cbd7fd29a6c062ef73ff840d96b3c86c40ac92cf4a813ee"
+}

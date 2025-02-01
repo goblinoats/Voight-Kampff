@@ -1,0 +1,31 @@
+# Use an official Python runtime as a parent image.
+FROM python:3.10-slim
+
+# Install any system-level dependencies (if needed). For example, if you need libGL, etc.
+RUN apt-get update && apt-get install -y \
+    libglib2.0-0 libsm6 libxext6 libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set the working directory.
+WORKDIR /app
+# Set a dummy CUDA_HOME to satisfy auto-gptq’s build requirements
+ARG AUTOGPTQ="0.3.1"
+ENV CUDA_VERSION=""
+ENV GITHUB_ACTIONS=true
+ENV TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX;8.9;9.0" 
+RUN pip install --no-cache-dir auto-gptq==$AUTOGPTQ
+
+# Copy requirements (we will create this file next).
+COPY requirements.txt /app/requirements.txt
+
+# Install Python dependencies.
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the API server code.
+COPY deepseek_api.py /app/
+
+# Expose the port (e.g., 8000) that the API will run on.
+EXPOSE 5002 
+
+# Command to run the API using uvicorn.
+CMD ["uvicorn", "deepseek_api:app", "--host", "0.0.0.0", "--port", "5002"]

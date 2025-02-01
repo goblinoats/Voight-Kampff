@@ -1,0 +1,61 @@
+########################################################
+# Uses a base image with common dependencies
+########################################################
+FROM vk-base:latest
+
+# Set build-time argument with a default value
+ARG NODE_ENV=development
+ARG DEVELOPMENT_MODE=standard
+# Set environment variable for use in RUN commands
+ENV NODE_ENV=${NODE_ENV}
+ENV DEVELOPMENT_MODE=${DEVELOPMENT_MODE}
+
+########################################################
+# Setup directory
+########################################################
+
+# Then copy the rest of your source code
+COPY frontend /app/frontend
+
+########################################################
+# Build frontend 
+########################################################
+
+# Set working directory
+WORKDIR /app/frontend
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+  python3 \
+  build-essential \
+  make
+
+# Install dependencies in the Docker image
+RUN pnpm install 
+
+# Build the application based on environment
+RUN if [ "$NODE_ENV" = "staging" ]; then \
+  pnpm build:staging; \
+  elif [ "$NODE_ENV" = "development" ]; then \
+  pnpm build; \
+  else \
+  echo "Unknown NODE_ENV value: $NODE_ENV"; \
+  exit 1; \
+  fi
+
+########################################################
+# Run application
+########################################################
+
+# Set working directory
+WORKDIR /app/frontend
+
+# Expose the port the frontend runs on
+EXPOSE 3000
+
+# Use shell form to evaluate environment variables
+CMD if [ "$DEVELOPMENT_MODE" = "hotreload" ]; then \
+  pnpm start; \
+  else \
+  pnpm serve; \
+  fi
