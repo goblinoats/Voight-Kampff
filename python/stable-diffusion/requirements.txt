@@ -1,0 +1,5 @@
+flask
+diffusers
+torch
+transformers  # if needed by diffusers
+accelerate

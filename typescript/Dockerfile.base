@@ -1,0 +1,24 @@
+# Use Node.js 22.8.0 as the base image
+FROM node:22.8.0-slim
+
+########################################################
+# Setup the Docker environment
+########################################################
+
+# Set the Docker working directory
+WORKDIR /app
+
+# Configure pnpm as package manager in the Docker image
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+
+########################################################
+# Install common dependencies globally
+########################################################
+
+# Install tsx globally
+RUN pnpm install -g tsx
+
+# Install bun globally
+RUN pnpm install -g bun

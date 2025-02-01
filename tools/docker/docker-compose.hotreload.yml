@@ -1,0 +1,10 @@
+services:
+  frontend:
+    volumes:
+      - ../../typescript/frontend:/app/frontend
+      - /app/frontend/node_modules
+
+  backend:
+    volumes:
+      - ../../typescript/backend:/app/backend
+      - /app/backend/node_modules

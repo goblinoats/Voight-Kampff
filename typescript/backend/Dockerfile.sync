@@ -1,0 +1,36 @@
+########################################################
+# Uses a base imagine with common dependencies
+########################################################
+FROM vk-base:latest
+
+########################################################
+# Setup directory
+########################################################
+
+# Copy package files
+COPY backend /app/backend
+
+########################################################
+# Build server
+########################################################
+
+# Set working directory
+WORKDIR /app/backend
+
+# Install dependencies
+RUN pnpm install --shamefully-hoist
+
+########################################################
+# Run server
+########################################################
+
+# Expose the port your server runs on
+EXPOSE 3002
+
+# Command to run the sync-engine
+CMD if [ "$DEVELOPMENT_MODE" = "hotreload" ]; then \
+    pnpm dev; \
+  else \
+    pnpm start; \
+  fi
+

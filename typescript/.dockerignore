@@ -1,0 +1,14 @@
+# Ignore node_modules in all subdirectories
+**/node_modules
+
+.npmrc
+# Ignore build artifacts
+build
+dist
+
+# Ignore Git repository files
+.git
+.gitignore
+
+# Ignore logs
+*.log
