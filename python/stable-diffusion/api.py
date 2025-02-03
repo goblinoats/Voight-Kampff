@@ -12,10 +12,10 @@ pipe = StableDiffusionPipeline.from_pretrained(
     "stable-diffusion-v1-4", 
     torch_dtype=torch.float32,  # Use float32 on CPU
     local_files_only=True  # Force loading only local files
-
 )
 # For CPU, you might need to move it to CPU:
 pipe = pipe.to("cuda" if torch.cuda.is_available() else "cpu")
+pipe.safety_checker = lambda images, clip_input: (images, None)  # Return images and a placeholder
 print("Model loaded.")
 
 @app.route("/generate", methods=["POST"])
