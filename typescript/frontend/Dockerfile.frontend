@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y \
   make
 
 # Install dependencies in the Docker image
-RUN pnpm install
+RUN pnpm install 
 
 # Build the application based on environment
 RUN if [ "$NODE_ENV" = "staging" ]; then \

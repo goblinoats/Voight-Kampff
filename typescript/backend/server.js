@@ -6,6 +6,7 @@ import FormData from 'form-data';
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url';
 import { Readable } from 'stream';
+import multer from 'multer';
 
 
 const app = express();
@@ -14,10 +15,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Add this at the top level of your file
+let lastImagePrompt = 'A Rorschach ink blot'; // Global variable to store the last image prompt
+let lastImageFile = '';
+
+// Add multer for handling file uploads
+const upload = multer({ dest: 'uploads/' }).any();
+
 // Basic health check route
 app.get('/', (req, res) => {
   res.json({ status: 'Server is running' });
 });
+
+
 
 // app.get('/test', (req, res) => {
 //     const filePath = 'test_transcript.wav'; // Path to the WAV file
@@ -49,7 +59,7 @@ app.get('/', (req, res) => {
 //     })
 // });
 
-const prompt_pretext = `
+const prompt_pretext = ({objective, subjective, previous_prompt }) => `
 Ok, we're going to play a game. You play a very important role in the game. Here is how it's played.
 
 1. I'm going to give you a prompt that was used to construct an image.
@@ -118,36 +128,64 @@ Let's begin!
 
 Round 1
 --
-First image prompt [[A sunset on jupiter]]
-Objective description: Grainy patterns, texture. Bands of blue, orange, and purple. The center band is distorted, warbly. There is a black area in the bottom right corner.
-Subjective description: Looks like the iOS wallpaper. Makes me think of the future, space and technology. The graininess added to it gives it that 90s feel like Sony branding. A kind of slick cool futureness.
+First image prompt [[${previous_prompt}]]
+Objective description: ${objective}
+Subjective description: ${subjective}
 
 
-WARNING: MAKE SURE THE IMAGE PROMPT IS WRAPPED IN DOUBLE BRACKETS. YOU WILL LOSE THE GAME IF IT IS NOT WRAPPED IN DOUBLE BRACKETS LIKE [[image prompt]]
-WARNING: THE IMAGE PROMPT SHOULD BE SHORT AND SUCCINCT WITH LIMITED USE OF ADJECTIVES AND LONG DESCRIPTORS.
+WARNING_1: MAKE SURE THE IMAGE PROMPT IS WRAPPED IN DOUBLE BRACKETS. YOU WILL LOSE THE GAME IF IT IS NOT WRAPPED IN DOUBLE BRACKETS LIKE [[image prompt]]
+WARNING_2: THE NEW IMAGE PROMPT SHOULD NOT BE THE SAME AS THE LAST IMAGE PROMPT. YOU DO NOT WANT TO GET STUCK IN A LOOP THEMATICALLY.
+WARNING_3: THE IMAGE PROMPT SHOULD BE SHORT AND SUCCINCT. IT IS BEING FED INTO A SMALL STABLE DIFFUSION MODEL. YOU MUST FORMAT THE IMAGE PROMPT APPROPRIATELY.
 `
 
-app.get('/test', (req, res) => {
-  const stream = generateDeepseekText(prompt_pretext);
+app.get('/generate-img-prompt', (req, res) => {
+  const { objective, subjective } = req.query;
+  
+  if (!objective || !subjective) {
+    return res.status(400).json({ error: 'Missing required parameters' });
+  }
+
+  const stream = generateDeepseekText(prompt_pretext({ objective, subjective, previous_prompt: lastImagePrompt }));
+  let accumulatedText = '';
     
-  // Pipe the stream to standard output
+  // Set up SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  // Pipe the stream to both client and accumulate locally
   stream.on('data', (data) => {
-    process.stdout.write(data); // Output to standard output
+    // Send to client
+    res.write(`data: ${data}\n\n`);
+    
+    // Accumulate locally
+    accumulatedText += data;
   });
 
   stream.on('end', () => {
-    // res.send("Check your console for the response!");
+    // Extract image prompts using regex
+    const promptRegex = /\[\[(.*?)\]\]/g;
+    const matches = [...accumulatedText.matchAll(promptRegex)];
+    
+    if (matches.length > 0) {
+      // Get the last match and store it
+      lastImagePrompt = matches[matches.length - 1][1];
+      console.log('Last image prompt:', lastImagePrompt);
+      generateImage(lastImagePrompt);
+    }
+
+    res.write('data: [DONE]\n\n');
+    res.end();
   });
 
   stream.on('error', (err) => {
     console.error("Stream error:", err);
-    // res.status(500).send("Error processing the request.");
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
   });
-
-  res.send("Check your console for the response!");
 });
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://0.0.0.0:11434";
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://host.docker.internal:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "deepseek-r1:8b";
 
 
@@ -233,36 +271,170 @@ function generateDeepseekText(prompt) {
   return stream;
 }
 
-// Define the API endpoint and the prompt to use
-const apiUrl = 'http://localhost:5003/generate';
-const prompt = 'A sunset on Jupiter';
 
-app.get('/diffusion', (req, res) => {
-  // Send a POST request with the prompt
-  axios.post(apiUrl, { prompt }, { responseType: 'arraybuffer' })
-    .then((response) => {
-      // Define the output file path
+
+// Define the API endpoint and the prompt to use
+// const apiUrl = 'http://diffusion:5003/generate';
+const apiUrl = 'http://host.docker.internal:5003/generate';
+const prompt = 'A Rorschach ink blot';
+
+// Utility function for image generation
+async function generateImage(imagePrompt, maxRetries = 3, delay = 1000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await axios.post(apiUrl, { prompt: imagePrompt }, { responseType: 'arraybuffer' });
+      
       const __filename = fileURLToPath(import.meta.url);
       const __dirname = dirname(__filename);
-      const outputPath = join(__dirname, 'output.png');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const outputPath = join(__dirname, `image-${timestamp}.png`);
+      lastImageFile = outputPath;
 
       // Write the binary data to the file
       fs.writeFileSync(outputPath, response.data);
       console.log(`Image saved to ${outputPath}`);
-      res.send('success');
-    })
-    .catch((error) => {
-      console.error('Error generating image:', error.response ? JSON.stringify(error.response.data) : error.message);
-      const errorMessage = error.response ? error.response.data.toString() : error.message; // Convert Buffer to string
-      res.status(500).send(errorMessage); // Send the error message as response
-    });
-})
+      return { success: true, path: outputPath };
+    } catch (error) {
+      console.error(`Attempt ${attempt} failed:`, error.response ? JSON.stringify(error.response.data) : error.message);
+      
+      if (attempt === maxRetries) {
+        // If this was our last attempt, throw the error
+        const errorMessage = error.response ? error.response.data.toString() : error.message;
+        throw new Error(`Failed after ${maxRetries} attempts: ${errorMessage}`);
+      }
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, delay));
+      console.log(`Retrying... Attempt ${attempt + 1}/${maxRetries}`);
+    }
+  }
+}
 
+// // Updated endpoint using the utility function
+// app.get('/diffusion', async (req, res) => {
+//   try {
+//     const result = await generateImage(prompt);
+//     res.send('success');
+//   } catch (error) {
+//     res.status(500).send(error.message);
+//   }
+// });
+
+app.get('/get-last-image', (req, res) => {
+  console.log('Get last image request received');
+  
+  // Add CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  
+  console.log('Last image file path:', lastImageFile);
+  
+  if (!lastImageFile || !fs.existsSync(lastImageFile)) {
+    console.log('No image available or file does not exist');
+    return res.status(404).json({ error: 'No image available' });
+  }
+
+  // Get file extension and set appropriate content type
+  const ext = lastImageFile.split('.').pop()?.toLowerCase();
+  const contentType = ext === 'png' ? 'image/png' : 
+                     ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 
+                     'application/octet-stream';
+
+  console.log('Sending image with content type:', contentType);
+  res.setHeader('Content-Type', contentType);
+  
+  const stream = fs.createReadStream(lastImageFile);
+  
+  stream.on('error', (error) => {
+    console.error('Error streaming image:', error);
+    res.status(500).json({ error: 'Failed to stream image' });
+  });
+
+  stream.pipe(res);
+});
+
+app.post('/transcribe', (req, res) => {
+    upload(req, res, async function(err) {
+        if (err) {
+            return res.status(400).json({ error: err.message });
+        }
+        
+        if (!req.files || !req.files.length) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        try {
+            const uploadedFile = req.files[0];
+            // Ensure the file has an audio extension
+            const originalName = uploadedFile.originalname || 'audio.webm';
+            const newPath = uploadedFile.path + '.' + originalName.split('.').pop();
+            fs.renameSync(uploadedFile.path, newPath);
+
+            // Create form data for the Whisper API
+            const formData = new FormData();
+            formData.append('file', fs.createReadStream(newPath), {
+                filename: originalName,
+                contentType: uploadedFile.mimetype
+            });
+
+            const response = await axios.post('http://whisper:5001/transcribe/', formData, {
+                headers: formData.getHeaders(),
+            });
+
+            // Cleanup temporary file
+            fs.unlinkSync(newPath);
+
+            // Return the transcription response
+            res.json(response.data);
+        } catch (error) {
+            console.error("Error transcribing:", error);
+            // Cleanup temporary file if it exists
+            if (req.files && req.files[0]) {
+                try {
+                    const filePath = req.files[0].path + '.' + req.files[0].originalname.split('.').pop();
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                    }
+                } catch (e) {
+                    console.error("Error deleting temporary file:", e);
+                }
+            }
+            res.status(500).json({ error: "Transcription failed" });
+        }
+    });
+});
 
 const PORT = 3002;
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  
+  // Cleanup old image files
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  try {
+    const files = fs.readdirSync(__dirname);
+    files.forEach(file => {
+      if (file.startsWith('image-')) {
+        fs.unlinkSync(join(__dirname, file));
+        console.log(`Cleaned up old image file: ${file}`);
+      }
+    });
+  } catch (error) {
+    console.error('Error cleaning up old image files:', error);
+  }
+  
+  // Check for initial image on startup
+  if (!lastImageFile || !fs.existsSync(lastImageFile)) {
+    try {
+      console.log('No initial image found, generating one...');
+      await generateImage(lastImagePrompt);
+      console.log('Initial image generated successfully');
+    } catch (error) {
+      console.error('Failed to generate initial image:', error);
+    }
+  }
 });
+
 
 server.setTimeout(300000); // Adjust the timeout as needed
 
@@ -307,3 +479,9 @@ server.setTimeout(300000); // Adjust the timeout as needed
 // app.listen(port, () => {
 //     console.log(`Server running on http://localhost:${port}`);
 // });
+
+// Add this near your other routes
+app.get('/test', (req, res) => {
+  console.log('Test endpoint hit');
+  res.json({ message: 'Backend is reachable' });
+});

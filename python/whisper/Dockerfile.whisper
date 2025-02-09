@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --no-cache-dir faster-whisper fastapi uvicorn numpy python-multipart
 
 # Copy script to container
-COPY whisper_server.py /app/
+COPY ./whisper/whisper_server.py /app/
 
 # Expose API port
 EXPOSE 5001

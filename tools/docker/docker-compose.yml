@@ -26,7 +26,7 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      zlim:
+      backend:
         condition: service_started
     environment:
       - NODE_ENV=${NODE_ENV:-development}
@@ -42,6 +42,9 @@ services:
       dockerfile: backend/Dockerfile.sync
     ports:
       - "3002:3002"
+    # depends_on:
+      # diffusion:
+      #   condition: service_started
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - DEVELOPMENT_MODE=${DEVELOPMENT_MODE:-standard}
@@ -50,6 +53,8 @@ services:
     restart: unless-stopped
     networks:
       - project-network
+    extra_hosts:
+      - "hosts.docker.internal:host-gateway"
 
   whisper:
     build:
@@ -57,8 +62,26 @@ services:
       dockerfile: whisper/Dockerfile.whisper
     ports:
       - "5001:5001"
+    volumes:
+      - ../../python/whisper/models:/app/models
     networks:
       - project-network
+  
+  # Uncomment if you want to run the diffusion model inside docker
+  # If you want to process the images faster for apple silicon
+  # you should manually start it on your Mac like so in the stable-diffusion dir
+  # python api.py --optimize-mac
+  # diffusion:
+  #   build:
+  #     context: ../../python
+  #     dockerfile: stable-diffusion/Dockerfile.diffusion
+  #   ports:
+  #     - "5003:5003"
+  #   volumes:
+  #     - ../../python/stable-diffusion/stable-diffusion-v1-4:/app/stable-diffusion-v1-4
+  #   networks:
+  #     - project-network
+
 
 volumes:
   shared-logs:

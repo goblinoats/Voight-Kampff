@@ -4,6 +4,11 @@ const Dotenv = require('dotenv-webpack');
 
 module.exports = env => {
   let envFile;
+  if (!env) {
+    env = {
+      development: true,
+    }
+  }
   if (env.staging) {
     envFile = './.env.staging';
   }
